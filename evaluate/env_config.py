@@ -16,6 +16,12 @@ class EnvironmentConfig:
 
 # Map robot server versions to their environment configurations
 ENVIRONMENT_CONFIGS = {
+    "6.2.1": EnvironmentConfig(
+        name="opentrons-6.2.1",
+        python_version="3.10",
+        venv_path=Path(".venvs/opentrons-6.2.1"),
+        install_specs=["opentrons==6.2.1", "pandas==1.4.3"],
+    ),
     "8.0.0": EnvironmentConfig(
         name="opentrons-8.0.0",
         python_version="3.10",
