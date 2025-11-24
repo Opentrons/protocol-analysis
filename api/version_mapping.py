@@ -4,6 +4,7 @@
 # Source: https://docs.opentrons.com/v2/versioning.html
 # Only includes versions 2.20 (8.0.0) and up
 PROTOCOL_API_TO_ROBOT_STACK = {
+    "2.13": "6.2.1",
     "2.20": "8.0.0",
     "2.21": "8.2.0",
     "2.22": "8.3.0",
