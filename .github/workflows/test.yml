@@ -31,9 +31,9 @@ jobs:
             - uses: ./.github/actions/setup
             - name: Run e2e tests
               run: make test-e2e
-                        - name: Save analysis venv cache
-                            if: success()
-                            uses: ./.github/actions/cache-venvs-save
+            - name: Save analysis venv cache
+              if: success()
+              uses: ./.github/actions/cache-venvs-save
             - name: Upload logs on failure
               if: failure()
               uses: actions/upload-artifact@v5
