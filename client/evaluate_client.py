@@ -13,14 +13,36 @@ import httpx
 class EvaluationClient:
     """Client for interacting with the protocol evaluation API."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:8000",
+        http_client: httpx.Client | None = None,
+    ):
         """Initialize the client with the base API URL."""
         self.base_url = base_url
-        self.client = httpx.Client(timeout=30.0)
+        self.client = http_client or httpx.Client(timeout=30.0)
+        self._owns_client = http_client is None
 
     def get_info(self) -> dict[str, Any]:
         """Get API information."""
         response = self.client.get(f"{self.base_url}/info")
+        response.raise_for_status()
+        return response.json()
+
+    def get_ready(self, processor_max_age_seconds: int | None = None) -> dict[str, Any]:
+        """Get API + processor readiness information.
+
+        Args:
+            processor_max_age_seconds: Optional heartbeat max age (seconds).
+
+        Returns:
+            JSON response from GET /ready.
+        """
+        params: dict[str, Any] = {}
+        if processor_max_age_seconds is not None:
+            params["processor_max_age_seconds"] = processor_max_age_seconds
+
+        response = self.client.get(f"{self.base_url}/ready", params=params)
         response.raise_for_status()
         return response.json()
 
@@ -148,7 +170,8 @@ class EvaluationClient:
 
     def close(self):
         """Close the HTTP client."""
-        self.client.close()
+        if self._owns_client:
+            self.client.close()
 
     def __enter__(self):
         """Context manager entry."""
@@ -162,14 +185,38 @@ class EvaluationClient:
 class AsyncEvaluationClient:
     """Async client for interacting with the protocol evaluation API."""
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
+    def __init__(
+        self,
+        base_url: str = "http://127.0.0.1:8000",
+        http_client: httpx.AsyncClient | None = None,
+    ):
         """Initialize the async client with the base API URL."""
         self.base_url = base_url
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = http_client or httpx.AsyncClient(timeout=30.0)
+        self._owns_client = http_client is None
 
     async def get_info(self) -> dict[str, Any]:
         """Get API information."""
         response = await self.client.get(f"{self.base_url}/info")
+        response.raise_for_status()
+        return response.json()
+
+    async def get_ready(
+        self, processor_max_age_seconds: int | None = None
+    ) -> dict[str, Any]:
+        """Get API + processor readiness information.
+
+        Args:
+            processor_max_age_seconds: Optional heartbeat max age (seconds).
+
+        Returns:
+            JSON response from GET /ready.
+        """
+        params: dict[str, Any] = {}
+        if processor_max_age_seconds is not None:
+            params["processor_max_age_seconds"] = processor_max_age_seconds
+
+        response = await self.client.get(f"{self.base_url}/ready", params=params)
         response.raise_for_status()
         return response.json()
 
@@ -274,7 +321,8 @@ class AsyncEvaluationClient:
 
     async def close(self):
         """Close the HTTP client."""
-        await self.client.aclose()
+        if self._owns_client:
+            await self.client.aclose()
 
     async def __aenter__(self):
         """Async context manager entry."""

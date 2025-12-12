@@ -3,7 +3,7 @@
 from enum import Enum
 from pathlib import Path
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -29,7 +29,7 @@ def write_job_metadata(
     metadata_file = job_dir / "metadata.json"
     metadata = {
         "robot_version": robot_version,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         **additional_metadata,
     }
     metadata_file.write_text(json.dumps(metadata, indent=2))
@@ -65,7 +65,7 @@ def write_job_status(
     status_file = job_dir / "status.json"
     status_data = {
         "status": status.value,
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
     if error:

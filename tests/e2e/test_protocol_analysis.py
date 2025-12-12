@@ -53,6 +53,19 @@ async def test_evaluate_protocol_e2e():
     assert custom_csv_data_file.exists(), f"CSV file not found: {custom_csv_data_file}"
 
     async with AsyncEvaluationClient() as client:
+        # Verify API + processor readiness before submitting jobs.
+        # This avoids flakiness if the processor hasn't written its first heartbeat yet.
+        ready = None
+        for _ in range(50):  # ~10s max
+            ready = await client.get_ready(processor_max_age_seconds=60)
+            if ready.get("api") == "ok" and ready.get("processor_ready") is True:
+                break
+            await asyncio.sleep(POLL_INTERVAL)
+
+        assert ready is not None
+        assert ready["api"] == "ok"
+        assert ready["processor_ready"] is True
+
         # Check API info
         info = await client.get_info()
         assert info["version"] == "0.1.0"
@@ -63,12 +76,14 @@ async def test_evaluate_protocol_e2e():
         (
             job_id_870,
             job_id_next,
+            job_id_edge,
             job_id_custom,
             job_id_csv,
             job_id_custom_csv,
         ) = await asyncio.gather(
             client.submit_protocol(protocol_file, robot_version="8.7.0"),
             client.submit_protocol(protocol_file, robot_version="next"),
+            client.submit_protocol(protocol_file, robot_version="edge"),
             client.submit_protocol(
                 custom_protocol_file,
                 robot_version="8.7.0",
@@ -92,6 +107,7 @@ async def test_evaluate_protocol_e2e():
             for job_id in [
                 job_id_870,
                 job_id_next,
+                job_id_edge,
                 job_id_custom,
                 job_id_csv,
                 job_id_custom_csv,
@@ -102,18 +118,21 @@ async def test_evaluate_protocol_e2e():
         (
             status_870,
             status_next,
+            status_edge,
             status_custom,
             status_csv,
             status_custom_csv,
         ) = await asyncio.gather(
             client.wait_for_completion(job_id_870, poll_interval=POLL_INTERVAL),
             client.wait_for_completion(job_id_next, poll_interval=POLL_INTERVAL),
+            client.wait_for_completion(job_id_edge, poll_interval=POLL_INTERVAL),
             client.wait_for_completion(job_id_custom, poll_interval=POLL_INTERVAL),
             client.wait_for_completion(job_id_csv, poll_interval=POLL_INTERVAL),
             client.wait_for_completion(job_id_custom_csv, poll_interval=POLL_INTERVAL),
         )
         assert status_870["status"] == "completed"
         assert status_next["status"] == "completed"
+        assert status_edge["status"] == "completed"
         assert status_custom["status"] == "completed"
         assert status_csv["status"] == "completed"
         assert status_custom_csv["status"] == "completed"
@@ -122,12 +141,14 @@ async def test_evaluate_protocol_e2e():
         (
             result_870,
             result_next,
+            result_edge,
             result_custom,
             result_csv,
             result_custom_csv,
         ) = await asyncio.gather(
             client.get_job_result(job_id_870),
             client.get_job_result(job_id_next),
+            client.get_job_result(job_id_edge),
             client.get_job_result(job_id_custom),
             client.get_job_result(job_id_csv),
             client.get_job_result(job_id_custom_csv),
@@ -147,6 +168,14 @@ async def test_evaluate_protocol_e2e():
         assert result_next["result"]["status"] == "success"
         assert result_next["result"]["robot_version"] == "next"
         assert result_next["result"]["analysis"]["result"] == "ok"
+
+        # Get and verify results for 'edge'
+        assert result_edge["status"] == "completed"
+        assert result_edge["result_type"] == "analysis"
+        assert result_edge["result"] is not None
+        assert result_edge["result"]["status"] == "success"
+        assert result_edge["result"]["robot_version"] == "edge"
+        assert result_edge["result"]["analysis"]["result"] == "ok"
 
         # Get and verify results for protocol with custom labware
         assert result_custom["status"] == "completed"
@@ -187,12 +216,14 @@ async def test_evaluate_protocol_e2e():
         (
             sim_870,
             sim_next,
+            sim_edge,
             sim_custom,
             sim_csv,
             sim_custom_csv,
         ) = await asyncio.gather(
             client.get_job_result(job_id_870, result_type="simulation"),
             client.get_job_result(job_id_next, result_type="simulation"),
+            client.get_job_result(job_id_edge, result_type="simulation"),
             client.get_job_result(job_id_custom, result_type="simulation"),
             client.get_job_result(job_id_csv, result_type="simulation"),
             client.get_job_result(job_id_custom_csv, result_type="simulation"),
@@ -202,6 +233,7 @@ async def test_evaluate_protocol_e2e():
         for sim_result, version in (
             (sim_870, "8.7.0"),
             (sim_next, "next"),
+            (sim_edge, "edge"),
             (sim_custom, "8.7.0"),
         ):
             assert sim_result["status"] == "completed"

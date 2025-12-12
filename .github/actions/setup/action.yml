@@ -4,10 +4,13 @@ description: Set up Python with uv and install dependencies
 runs:
   using: composite
   steps:
+    - name: Restore cached analysis venvs
+      uses: ./.github/actions/cache-venvs
+
     - name: Install uv
       uses: astral-sh/setup-uv@v7
       with:
-        python-version: "3.10"
+        python-version: "3.12"
         enable-cache: true
         cache-dependency-glob: |
           **/pyproject.toml

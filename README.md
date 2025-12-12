@@ -5,6 +5,7 @@ FastAPI service for evaluating Opentrons protocols with asynchronous analysis pl
 ## Features
 
 - **`/info` endpoint**: Returns application version and protocol API to robot stack version mappings
+- **`/ready` endpoint**: Readiness probe (API up + processor heartbeat seen recently)
 - **`/evaluate` endpoint**: Accepts protocol files for analysis _and_ simulation with optional custom labware, CSV data, and runtime parameters
 - **`/jobs/{job_id}/status` endpoint**: Check the status of an evaluation job
 - **`/jobs/{job_id}/result` endpoint**: Retrieve either the analysis or simulation artifact via the `result_type` query parameter
@@ -20,6 +21,8 @@ This service uses a two-component architecture:
 Jobs are queued via the filesystem at `storage/jobs/{job_id}/` and the processor picks them up for evaluation.
 
 Each job specifies a target robot server version. Supported versions range from 8.0.0 through the special `next` alias, which always points at the latest published Opentrons alpha build (configured in `evaluate/env_config.py`). The processor spins up isolated virtual environments (managed via uv) per version so evaluations stay reproducible.
+
+In addition to release targets, the API also accepts an `edge` target intended for installing and analyzing against Opentrons' `edge` branch.
 
 ## Development
 

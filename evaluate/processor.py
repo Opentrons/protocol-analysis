@@ -9,10 +9,11 @@ import re
 import subprocess
 import time
 import ast
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from evaluate.env_config import get_environment_for_version
+from evaluate.env_config import get_environment_for_version, get_supported_versions
 from evaluate.job_status import (
     JobStatus,
     read_job_metadata,
@@ -21,6 +22,7 @@ from evaluate.job_status import (
 )
 from evaluate.venv_manager import VenvManager
 from api.config import STORAGE_BASE_DIR
+from evaluate.processor_heartbeat import write_processor_heartbeat
 
 ANALYSIS_TIMEOUT = 120  # Timeout per protocol in seconds
 SIMULATION_TIMEOUT = ANALYSIS_TIMEOUT
@@ -37,6 +39,94 @@ class ProtocolProcessor:
         """
         self.storage_dir = storage_dir
         self.venv_manager = VenvManager()
+        self._environments_warmed = False
+
+    def warm_up_environments(self, *, max_workers: int = 4) -> dict[str, bool]:
+        """Create venvs for all configured versions and verify opentrons is importable.
+
+        This reduces first-job latency and catches broken environments early.
+        """
+
+        versions = sorted(get_supported_versions())
+        if not versions:
+            self._environments_warmed = True
+            return {}
+
+        def _setup(version: str) -> tuple[str, bool]:
+            try:
+                config = get_environment_for_version(version)
+                python_path = self.venv_manager.ensure_venv_exists(config)
+                self._print_environment_debug(version, python_path)
+                ok = self._check_opentrons_installed(python_path)
+                return version, ok
+            except Exception as e:  # pragma: no cover - defensive
+                print(f"Warm-up failed for {version}: {e}")
+                return version, False
+
+        results: dict[str, bool] = {}
+        worker_count = min(max_workers, len(versions))
+        print(f"Warming up {len(versions)} environments (workers={worker_count})...")
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(_setup, v) for v in versions]
+            for future in as_completed(futures):
+                version, ok = future.result()
+                results[version] = ok
+
+        self._environments_warmed = True
+
+        not_ready = sorted([v for v, ok in results.items() if not ok])
+        if not_ready:
+            print("Warm-up completed with failures for: " + ", ".join(not_ready))
+        else:
+            print("Warm-up completed successfully.")
+
+        return results
+
+    def _check_opentrons_installed(self, python_path: Path) -> bool:
+        """Return True if opentrons can be imported in the given venv."""
+        try:
+            subprocess.run(
+                [str(python_path), "-c", "import opentrons; print('ok')"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return True
+        except Exception as e:
+            print(f"opentrons import check failed for {python_path}: {e}")
+            return False
+
+    def _print_environment_debug(self, version: str, python_path: Path) -> None:
+        """Print environment diagnostics to stdout (captured by service logs)."""
+
+        def _run(cmd: list[str]) -> str:
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                out = (proc.stdout or "").strip()
+                err = (proc.stderr or "").strip()
+                if out and err:
+                    return out + "\n" + err
+                return out or err
+            except Exception as e:  # pragma: no cover
+                return f"<failed to run {' '.join(cmd)}: {e}>"
+
+        print("=" * 80)
+        print(f"Environment debug for {version}")
+        print(f"python: {python_path}")
+        print("python --version:")
+        print(_run([str(python_path), "--version"]))
+        print("pip --version:")
+        print(_run([str(python_path), "-m", "pip", "--version"]))
+        print("pip list:")
+        print(_run([str(python_path), "-m", "pip", "list"]))
+        print("=" * 80)
 
     def get_job_files(self, job_id: str) -> dict[str, Any]:
         """Get all files for a job.
@@ -617,6 +707,12 @@ print(json.dumps({
         Returns:
             Number of jobs processed
         """
+        # Update heartbeat at the start of every polling cycle.
+        write_processor_heartbeat(self.storage_dir)
+
+        # Warm up environments on first run.
+        if not self._environments_warmed:
+            self.warm_up_environments()
         pending_jobs = self.find_pending_jobs()
 
         for job_id in pending_jobs:
@@ -633,8 +729,16 @@ print(json.dumps({
         print(f"Protocol processor started, polling every {poll_interval}s")
         print(f"Monitoring: {self.storage_dir}")
 
+        # Warm up environments once at startup.
+        if not self._environments_warmed:
+            write_processor_heartbeat(self.storage_dir)
+            self.warm_up_environments()
+            write_processor_heartbeat(self.storage_dir)
+
         while True:
             try:
+                # Heartbeat even if there are no jobs.
+                write_processor_heartbeat(self.storage_dir)
                 processed = self.run_once()
                 if processed > 0:
                     print(f"Processed {processed} job(s)")
@@ -643,6 +747,9 @@ print(json.dumps({
                 break
             except Exception as e:
                 print(f"Error in processor loop: {e}")
+
+            # Heartbeat before sleeping as well, to keep the timestamp fresh.
+            write_processor_heartbeat(self.storage_dir)
 
             time.sleep(poll_interval)
 

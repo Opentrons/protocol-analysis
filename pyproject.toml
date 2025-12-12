@@ -3,7 +3,7 @@ name = "protocol-analysis"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.121.3",
     "python-multipart>=0.0.20",

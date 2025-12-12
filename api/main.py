@@ -11,6 +11,7 @@ from evaluate.job_status import (
     write_job_metadata,
     write_job_status,
 )
+from evaluate.processor_heartbeat import get_processor_readiness
 from api.file_storage import file_storage
 from api.version_mapping import PROTOCOL_API_TO_ROBOT_STACK, VALID_ROBOT_VERSIONS
 
@@ -32,6 +33,16 @@ class InfoResponse(BaseModel):
     supported_robot_versions: list[str]
 
 
+class ReadyResponse(BaseModel):
+    """Response model for the /ready endpoint."""
+
+    api: str
+    processor_ready: bool
+    processor_last_heartbeat: str | None
+    processor_heartbeat_age_seconds: float | None
+    processor_heartbeat_max_age_seconds: int
+
+
 @app.get("/info", response_model=InfoResponse)
 async def get_info() -> InfoResponse:
     """
@@ -47,6 +58,33 @@ async def get_info() -> InfoResponse:
         version=VERSION,
         protocol_api_versions=PROTOCOL_API_TO_ROBOT_STACK,
         supported_robot_versions=sorted(VALID_ROBOT_VERSIONS),
+    )
+
+
+@app.get(
+    "/ready",
+    response_model=ReadyResponse,
+    summary="Readiness probe",
+    description="Reports whether the API is up and whether the processor appears alive.",
+)
+async def get_ready(
+    processor_max_age_seconds: int = Query(
+        30,
+        ge=1,
+        le=3600,
+        description="Max heartbeat age (seconds) before considering the processor not ready.",
+    ),
+) -> ReadyResponse:
+    readiness = get_processor_readiness(
+        file_storage.base_dir, max_age_seconds=processor_max_age_seconds
+    )
+
+    return ReadyResponse(
+        api="ok",
+        processor_ready=readiness.ready,
+        processor_last_heartbeat=readiness.last_heartbeat,
+        processor_heartbeat_age_seconds=readiness.age_seconds,
+        processor_heartbeat_max_age_seconds=readiness.max_age_seconds,
     )
 
 

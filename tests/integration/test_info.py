@@ -114,6 +114,7 @@ def test_info_endpoint_returns_supported_robot_versions(client):
 
     # Check that versions are sorted and contain expected values
     expected_versions = [
+        "6.2.1",
         "8.0.0",
         "8.2.0",
         "8.3.0",
@@ -121,6 +122,7 @@ def test_info_endpoint_returns_supported_robot_versions(client):
         "8.5.0",
         "8.6.0",
         "8.7.0",
+        "edge",
         "next",
     ]
     assert data["supported_robot_versions"] == expected_versions

@@ -17,3 +17,6 @@ PROTOCOL_API_TO_ROBOT_STACK = {
 
 VALID_ROBOT_VERSIONS = set(PROTOCOL_API_TO_ROBOT_STACK.values())
 # The special 'next' value tracks the latest published alpha build of Opentrons.
+
+# Additional non-release targets.
+VALID_ROBOT_VERSIONS.add("edge")

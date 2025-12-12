@@ -1,6 +1,7 @@
 """Virtual environment management for protocol analysis."""
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,33 @@ class VenvManager:
             python_path = self._python_bin(venv_path)
             if python_path.exists():
                 print(f"Virtual environment already exists: {venv_path}")
+
+                # If the venv exists but uses a different Python major.minor than
+                # requested, recreate it. This is especially important for 'edge'
+                # where we may want a newer interpreter.
+                actual_mm = self._python_major_minor(python_path)
+                expected_mm = config.python_version
+                if actual_mm is not None and actual_mm != expected_mm:
+                    print(
+                        f"Existing venv python version mismatch for {venv_path}: "
+                        f"expected {expected_mm}, found {actual_mm}. Recreating."
+                    )
+                    shutil.rmtree(venv_path, ignore_errors=True)
+                    print(f"Creating virtual environment: {venv_path}")
+                    self._create_venv(venv_path, config.python_version)
+                    python_path = self._python_bin(venv_path)
+                    print("Installing packages: " + ", ".join(config.install_specs))
+                    self._install_packages(python_path, config.install_specs)
+                    return python_path
+
+                # Some earlier runs may have created the venv but failed to install
+                # dependencies. Ensure opentrons is importable; if not, re-install.
+                if not self._can_import(python_path, "opentrons"):
+                    print(
+                        "Existing venv is missing 'opentrons'; reinstalling packages: "
+                        + ", ".join(config.install_specs)
+                    )
+                    self._install_packages(python_path, config.install_specs)
                 return python_path
 
         print(f"Creating virtual environment: {venv_path}")
@@ -50,6 +78,24 @@ class VenvManager:
 
         return python_path
 
+    def _can_import(self, python_path: Path, module_name: str) -> bool:
+        """Return True if a module can be imported in the given interpreter."""
+        try:
+            subprocess.run(
+                [
+                    str(python_path),
+                    "-c",
+                    f"import {module_name}  # noqa: F401\nprint('ok')",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return True
+        except Exception:
+            return False
+
     def _create_venv(self, venv_path: Path, python_version: str) -> None:
         """Create a virtual environment.
 
@@ -60,8 +106,29 @@ class VenvManager:
         Raises:
             RuntimeError: If venv creation fails
         """
+        # Prefer using `uv venv` so we can honor python_version consistently.
+        # Fall back to `python -m venv` if uv isn't available.
         try:
-            # Use the uv-managed python interpreter when available
+            subprocess.run(
+                ["uv", "venv", "--python", python_version, str(venv_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return
+        except FileNotFoundError:
+            pass
+        except subprocess.CalledProcessError as e:
+            # If the caller asked for a specific major.minor and uv failed,
+            # do not silently fall back to whatever interpreter we have.
+            base_mm = self._python_major_minor(self.base_python)
+            if base_mm is None or base_mm != python_version:
+                raise RuntimeError(
+                    f"Failed to create venv with Python {python_version} via uv: {e.stderr}"
+                ) from e
+            # Otherwise, we can fall back below.
+
+        try:
             subprocess.run(
                 [str(self.base_python), "-m", "venv", str(venv_path)],
                 check=True,
@@ -72,6 +139,25 @@ class VenvManager:
             raise RuntimeError(
                 f"Failed to create virtual environment: {e.stderr}"
             ) from e
+
+    def _python_major_minor(self, python_path: Path) -> str | None:
+        """Return interpreter major.minor (e.g. '3.12') or None if unknown."""
+        try:
+            proc = subprocess.run(
+                [
+                    str(python_path),
+                    "-c",
+                    "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            value = (proc.stdout or "").strip()
+            return value or None
+        except Exception:
+            return None
 
     def _install_packages(self, python_path: Path, install_specs: list[str]) -> None:
         """Install packages into a virtual environment.
@@ -85,6 +171,17 @@ class VenvManager:
         """
         current_spec = "--upgrade pip"
         try:
+            # Some environments (or partial/corrupted venvs) may not have pip.
+            # Try to bootstrap it via ensurepip.
+            if not self._can_import(python_path, "pip"):
+                subprocess.run(
+                    [str(python_path), "-m", "ensurepip", "--upgrade"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+
             # Upgrade pip first
             subprocess.run(
                 [str(python_path), "-m", "pip", "install", "--upgrade", "pip"],

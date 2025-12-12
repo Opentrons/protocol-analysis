@@ -64,11 +64,29 @@ ENVIRONMENT_CONFIGS = {
         venv_path=Path(".venvs/opentrons-8.7.0"),
         install_specs=["opentrons==8.7.0", "pandas==1.4.3"],
     ),
+    "8.8.0": EnvironmentConfig(
+        name="opentrons-8.8.0",
+        python_version="3.10",
+        venv_path=Path(".venvs/opentrons-8.8.0"),
+        install_specs=["opentrons==8.8.0", "pandas==1.4.3"],
+    ),
     "next": EnvironmentConfig(
         name="opentrons-next",
         python_version="3.10",
         venv_path=Path(".venvs/opentrons-next"),
-        install_specs=["opentrons==8.8.0a9", "pandas==1.4.3"],
+        install_specs=["opentrons==8.8.0a13", "pandas==1.4.3"],
+    ),
+    "edge": EnvironmentConfig(
+        name="opentrons-edge",
+        python_version="3.12",
+        venv_path=Path(".venvs/opentrons-edge"),
+        # Install from the Opentrons/opentrons 'edge' branch. Order matters:
+        # install shared-data first, then api (opentrons).
+        install_specs=[
+            "git+https://github.com/Opentrons/opentrons.git@edge#subdirectory=shared-data",
+            "git+https://github.com/Opentrons/opentrons.git@edge#subdirectory=api",
+            "pandas==1.4.3",
+        ],
     ),
 }
 
