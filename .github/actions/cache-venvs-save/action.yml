@@ -10,4 +10,4 @@ runs:
         path: |
           .venvs
         key: >-
-          venvs-${{ runner.os }}-py3.12-${{ hashFiles('uv.lock', 'evaluate/env_config.py') }}-${{ github.sha }}
+          venvs-${{ runner.os }}-py3.12-${{ hashFiles('uv.lock', 'evaluate/env_config.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
