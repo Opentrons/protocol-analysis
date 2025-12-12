@@ -9,6 +9,7 @@ import re
 import subprocess
 import time
 import ast
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,18 @@ class ProtocolProcessor:
         """
 
         versions = sorted(get_supported_versions())
+
+        # Installing from the Opentrons/opentrons repo branch can be slow.
+        # Keep 'edge' capability, but don't warm it up unless explicitly enabled.
+        enable_edge = os.getenv("PROTOCOL_EVALUATION_ENABLE_EDGE", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+        if not enable_edge:
+            versions = [v for v in versions if v != "edge"]
+
         if not versions:
             self._environments_warmed = True
             return {}

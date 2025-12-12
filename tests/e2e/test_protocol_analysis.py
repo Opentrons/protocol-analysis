@@ -1,6 +1,7 @@
 """End-to-end test for protocol evaluation workflow."""
 
 import asyncio
+import os
 from pathlib import Path
 
 import pytest
@@ -73,87 +74,70 @@ async def test_evaluate_protocol_e2e():
         assert "supported_robot_versions" in info
         assert len(info["supported_robot_versions"]) > 0
 
-        (
-            job_id_870,
-            job_id_next,
-            job_id_edge,
-            job_id_custom,
-            job_id_csv,
-            job_id_custom_csv,
-        ) = await asyncio.gather(
-            client.submit_protocol(protocol_file, robot_version="8.7.0"),
-            client.submit_protocol(protocol_file, robot_version="next"),
-            client.submit_protocol(protocol_file, robot_version="edge"),
-            client.submit_protocol(
+        enable_edge = os.getenv("PROTOCOL_EVALUATION_ENABLE_EDGE", "").lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        )
+
+        submit_tasks = {
+            "8.7.0": client.submit_protocol(protocol_file, robot_version="8.7.0"),
+            "next": client.submit_protocol(protocol_file, robot_version="next"),
+            "custom": client.submit_protocol(
                 custom_protocol_file,
                 robot_version="8.7.0",
                 labware_files=custom_labware_files,
             ),
-            client.submit_protocol(
+            "csv": client.submit_protocol(
                 csv_protocol_file,
                 robot_version="8.7.0",
                 csv_file=csv_data_file,
             ),
-            client.submit_protocol(
+            "custom_csv": client.submit_protocol(
                 custom_csv_protocol_file,
                 robot_version="8.7.0",
                 labware_files=[custom_csv_labware_file],
                 csv_file=custom_csv_data_file,
             ),
-        )
+        }
+        if enable_edge:
+            submit_tasks["edge"] = client.submit_protocol(
+                protocol_file, robot_version="edge"
+            )
 
-        assert all(
-            job_id
-            for job_id in [
-                job_id_870,
-                job_id_next,
-                job_id_edge,
-                job_id_custom,
-                job_id_csv,
-                job_id_custom_csv,
-            ]
-        )
+        submit_keys = list(submit_tasks.keys())
+        submit_results = await asyncio.gather(*[submit_tasks[k] for k in submit_keys])
+        job_ids = dict(zip(submit_keys, submit_results, strict=True))
+
+        assert all(job_id for job_id in job_ids.values())
 
         # Poll for completion of both jobs
-        (
-            status_870,
-            status_next,
-            status_edge,
-            status_custom,
-            status_csv,
-            status_custom_csv,
-        ) = await asyncio.gather(
-            client.wait_for_completion(job_id_870, poll_interval=POLL_INTERVAL),
-            client.wait_for_completion(job_id_next, poll_interval=POLL_INTERVAL),
-            client.wait_for_completion(job_id_edge, poll_interval=POLL_INTERVAL),
-            client.wait_for_completion(job_id_custom, poll_interval=POLL_INTERVAL),
-            client.wait_for_completion(job_id_csv, poll_interval=POLL_INTERVAL),
-            client.wait_for_completion(job_id_custom_csv, poll_interval=POLL_INTERVAL),
-        )
-        assert status_870["status"] == "completed"
-        assert status_next["status"] == "completed"
-        assert status_edge["status"] == "completed"
-        assert status_custom["status"] == "completed"
-        assert status_csv["status"] == "completed"
-        assert status_custom_csv["status"] == "completed"
+        status_tasks = {
+            key: client.wait_for_completion(job_id, poll_interval=POLL_INTERVAL)
+            for key, job_id in job_ids.items()
+        }
+        status_keys = list(status_tasks.keys())
+        status_results = await asyncio.gather(*[status_tasks[k] for k in status_keys])
+        statuses = dict(zip(status_keys, status_results, strict=True))
+
+        assert statuses["8.7.0"]["status"] == "completed"
+        assert statuses["next"]["status"] == "completed"
+        assert statuses["custom"]["status"] == "completed"
+        assert statuses["csv"]["status"] == "completed"
+        assert statuses["custom_csv"]["status"] == "completed"
+        if enable_edge:
+            assert statuses["edge"]["status"] == "completed"
 
         # Get and verify results for 8.7.0
-        (
-            result_870,
-            result_next,
-            result_edge,
-            result_custom,
-            result_csv,
-            result_custom_csv,
-        ) = await asyncio.gather(
-            client.get_job_result(job_id_870),
-            client.get_job_result(job_id_next),
-            client.get_job_result(job_id_edge),
-            client.get_job_result(job_id_custom),
-            client.get_job_result(job_id_csv),
-            client.get_job_result(job_id_custom_csv),
-        )
+        result_tasks = {
+            key: client.get_job_result(job_id) for key, job_id in job_ids.items()
+        }
+        result_keys = list(result_tasks.keys())
+        result_results = await asyncio.gather(*[result_tasks[k] for k in result_keys])
+        results = dict(zip(result_keys, result_results, strict=True))
 
+        result_870 = results["8.7.0"]
         assert result_870["status"] == "completed"
         assert result_870["result_type"] == "analysis"
         assert result_870["result"] is not None
@@ -162,6 +146,7 @@ async def test_evaluate_protocol_e2e():
         assert result_870["result"]["analysis"]["result"] == "ok"
 
         # Get and verify results for 'next'
+        result_next = results["next"]
         assert result_next["status"] == "completed"
         assert result_next["result_type"] == "analysis"
         assert result_next["result"] is not None
@@ -169,15 +154,18 @@ async def test_evaluate_protocol_e2e():
         assert result_next["result"]["robot_version"] == "next"
         assert result_next["result"]["analysis"]["result"] == "ok"
 
-        # Get and verify results for 'edge'
-        assert result_edge["status"] == "completed"
-        assert result_edge["result_type"] == "analysis"
-        assert result_edge["result"] is not None
-        assert result_edge["result"]["status"] == "success"
-        assert result_edge["result"]["robot_version"] == "edge"
-        assert result_edge["result"]["analysis"]["result"] == "ok"
+        # Get and verify results for 'edge' (optional)
+        if enable_edge:
+            result_edge = results["edge"]
+            assert result_edge["status"] == "completed"
+            assert result_edge["result_type"] == "analysis"
+            assert result_edge["result"] is not None
+            assert result_edge["result"]["status"] == "success"
+            assert result_edge["result"]["robot_version"] == "edge"
+            assert result_edge["result"]["analysis"]["result"] == "ok"
 
         # Get and verify results for protocol with custom labware
+        result_custom = results["custom"]
         assert result_custom["status"] == "completed"
         assert result_custom["result_type"] == "analysis"
         assert result_custom["result"] is not None
@@ -191,6 +179,7 @@ async def test_evaluate_protocol_e2e():
         assert set(analyzed_labware) >= expected_labware_names
 
         # Get and verify results for protocol with CSV input
+        result_csv = results["csv"]
         assert result_csv["status"] == "completed"
         assert result_csv["result_type"] == "analysis"
         assert result_csv["result"] is not None
@@ -202,6 +191,7 @@ async def test_evaluate_protocol_e2e():
         assert analyzed_csv == csv_data_file.name
 
         # Get and verify results for protocol requiring both labware and CSV
+        result_custom_csv = results["custom_csv"]
         assert result_custom_csv["status"] == "completed"
         assert result_custom_csv["result_type"] == "analysis"
         assert result_custom_csv["result"] is not None
@@ -213,38 +203,35 @@ async def test_evaluate_protocol_e2e():
         assert custom_csv_labware_file.name in analyzed_custom_csv["labware_files"]
 
         # Fetch simulation outputs for every job
-        (
-            sim_870,
-            sim_next,
-            sim_edge,
-            sim_custom,
-            sim_csv,
-            sim_custom_csv,
-        ) = await asyncio.gather(
-            client.get_job_result(job_id_870, result_type="simulation"),
-            client.get_job_result(job_id_next, result_type="simulation"),
-            client.get_job_result(job_id_edge, result_type="simulation"),
-            client.get_job_result(job_id_custom, result_type="simulation"),
-            client.get_job_result(job_id_csv, result_type="simulation"),
-            client.get_job_result(job_id_custom_csv, result_type="simulation"),
-        )
+        sim_tasks = {
+            key: client.get_job_result(job_id, result_type="simulation")
+            for key, job_id in job_ids.items()
+        }
+        sim_keys = list(sim_tasks.keys())
+        sim_results = await asyncio.gather(*[sim_tasks[k] for k in sim_keys])
+        sims = dict(zip(sim_keys, sim_results, strict=True))
 
         # Jobs without CSV inputs should have full simulation data
-        for sim_result, version in (
-            (sim_870, "8.7.0"),
-            (sim_next, "next"),
-            (sim_edge, "edge"),
-            (sim_custom, "8.7.0"),
-        ):
+        expected_full_sim = [
+            ("8.7.0", "8.7.0"),
+            ("next", "next"),
+            ("custom", "8.7.0"),
+        ]
+        if enable_edge:
+            expected_full_sim.append(("edge", "edge"))
+
+        for key, robot_version in expected_full_sim:
+            sim_result = sims[key]
             assert sim_result["status"] == "completed"
             assert sim_result["result_type"] == "simulation"
             assert sim_result["result"] is not None
             assert sim_result["result"]["status"] == "success"
-            assert sim_result["result"]["robot_version"] == version
+            assert sim_result["result"]["robot_version"] == robot_version
             assert "simulation" in sim_result["result"]
 
         # Jobs with CSV inputs should skip simulation with an explanatory reason
-        for sim_result in (sim_csv, sim_custom_csv):
+        for key in ("csv", "custom_csv"):
+            sim_result = sims[key]
             assert sim_result["status"] == "completed"
             assert sim_result["result_type"] == "simulation"
             assert sim_result["result"] is not None
