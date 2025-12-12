@@ -77,7 +77,7 @@ run-client:
 test-e2e:
 	@echo "Starting services for e2e tests..."
 	@make clean-storage > /dev/null 2>&1
-	@PYTHONUNBUFFERED=1 uv run fastapi dev api/main.py > e2e-api.log 2>&1 & echo $$! > e2e-api.pid; \
+	@PYTHONUNBUFFERED=1 uv run uvicorn api.main:app --host 127.0.0.1 --port 8000 > e2e-api.log 2>&1 & echo $$! > e2e-api.pid; \
 	PYTHONUNBUFFERED=1 uv run python run_processor.py > e2e-processor.log 2>&1 & echo $$! > e2e-processor.pid; \
 	sleep 3 && \
 	echo "Running e2e tests..." && \

@@ -41,6 +41,21 @@ class VenvManager:
             if python_path.exists():
                 print(f"Virtual environment already exists: {venv_path}")
 
+                # Cached/restored venvs can be present but unusable if their
+                # base interpreter moved or was removed (common in CI caches).
+                # If the interpreter can't even import stdlib, recreate.
+                if not self._python_is_usable(python_path):
+                    print(
+                        f"Existing venv python is not usable: {python_path}. Recreating."
+                    )
+                    shutil.rmtree(venv_path, ignore_errors=True)
+                    print(f"Creating virtual environment: {venv_path}")
+                    self._create_venv(venv_path, config.python_version)
+                    python_path = self._python_bin(venv_path)
+                    print("Installing packages: " + ", ".join(config.install_specs))
+                    self._install_packages(python_path, config.install_specs)
+                    return python_path
+
                 # If the venv exists but uses a different Python major.minor than
                 # requested, recreate it. This is especially important for 'edge'
                 # where we may want a newer interpreter.
@@ -73,6 +88,11 @@ class VenvManager:
         self._create_venv(venv_path, config.python_version)
 
         python_path = self._python_bin(venv_path)
+        if not self._python_is_usable(python_path):
+            # Extremely defensive: if creation succeeded but the resulting python
+            # can't even import stdlib, treat it as corrupted.
+            shutil.rmtree(venv_path, ignore_errors=True)
+            raise RuntimeError(f"Created venv is not usable: {python_path}")
         print("Installing packages: " + ", ".join(config.install_specs))
         self._install_packages(python_path, config.install_specs)
 
@@ -91,6 +111,30 @@ class VenvManager:
                 capture_output=True,
                 text=True,
                 timeout=30,
+            )
+            return True
+        except Exception:
+            return False
+
+    def _python_is_usable(self, python_path: Path) -> bool:
+        """Return True if the interpreter can start and import stdlib.
+
+        This specifically guards against cached/restored venvs whose base
+        interpreter has moved or been removed, which can manifest as
+        `ModuleNotFoundError: encodings` or other fatal startup failures.
+        """
+
+        try:
+            subprocess.run(
+                [
+                    str(python_path),
+                    "-c",
+                    "import encodings, sys; print(sys.version)",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             return True
         except Exception:
