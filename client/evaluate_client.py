@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import time
 from contextlib import ExitStack
 from pathlib import Path
@@ -15,11 +16,13 @@ class EvaluationClient:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:8000",
+        base_url: str | None = None,
         http_client: httpx.Client | None = None,
     ):
         """Initialize the client with the base API URL."""
-        self.base_url = base_url
+        self.base_url = base_url or os.getenv(
+            "PROTOCOL_EVALUATION_BASE_URL", "http://127.0.0.1:8000"
+        )
         self.client = http_client or httpx.Client(timeout=30.0)
         self._owns_client = http_client is None
 
@@ -187,11 +190,13 @@ class AsyncEvaluationClient:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:8000",
+        base_url: str | None = None,
         http_client: httpx.AsyncClient | None = None,
     ):
         """Initialize the async client with the base API URL."""
-        self.base_url = base_url
+        self.base_url = base_url or os.getenv(
+            "PROTOCOL_EVALUATION_BASE_URL", "http://127.0.0.1:8000"
+        )
         self.client = http_client or httpx.AsyncClient(timeout=30.0)
         self._owns_client = http_client is None
 

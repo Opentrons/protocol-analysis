@@ -77,11 +77,14 @@ run-client:
 test-e2e:
 	@echo "Starting services for e2e tests..."
 	@make clean-storage > /dev/null 2>&1
-	@PYTHONUNBUFFERED=1 uv run uvicorn api.main:app --host 127.0.0.1 --port 8000 > e2e-api.log 2>&1 & echo $$! > e2e-api.pid; \
+	@PORT=$$(python -c "import socket; s=socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1]); s.close()"); \
+	BASE_URL=http://127.0.0.1:$$PORT; \
+	echo "Using $$BASE_URL"; \
+	PYTHONUNBUFFERED=1 uv run uvicorn api.main:app --host 127.0.0.1 --port $$PORT > e2e-api.log 2>&1 & echo $$! > e2e-api.pid; \
 	PYTHONUNBUFFERED=1 uv run python run_processor.py > e2e-processor.log 2>&1 & echo $$! > e2e-processor.pid; \
 	sleep 3 && \
 	echo "Running e2e tests..." && \
-	uv run pytest tests/e2e/ -v; \
+	PROTOCOL_EVALUATION_BASE_URL=$$BASE_URL uv run pytest tests/e2e/ -v; \
 	TEST_EXIT=$$?; \
 	echo "Stopping services..."; \
 	kill $$(cat e2e-api.pid 2>/dev/null) 2>/dev/null || true; \
