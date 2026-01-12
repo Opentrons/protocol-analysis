@@ -12,7 +12,8 @@ PROTOCOL_API_TO_ROBOT_STACK = {
     "2.24": "8.5.0",
     "2.25": "8.6.0",
     "2.26": "8.7.0",
-    "2.27": "next",
+    "2.27": "8.8.0",
+    "2.28": "next",
 }
 
 VALID_ROBOT_VERSIONS = set(PROTOCOL_API_TO_ROBOT_STACK.values())

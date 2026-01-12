@@ -48,7 +48,17 @@ async def test_get_info_protocol_api_versions_contain_expected_keys():
     response = await get_info()
 
     # Check for some known protocol API versions (only 2.20 and up)
-    expected_versions = ["2.20", "2.21", "2.22", "2.23", "2.24", "2.25", "2.26", "2.27"]
+    expected_versions = [
+        "2.20",
+        "2.21",
+        "2.22",
+        "2.23",
+        "2.24",
+        "2.25",
+        "2.26",
+        "2.27",
+        "2.28",
+    ]
     for version in expected_versions:
         assert version in response.protocol_api_versions
 

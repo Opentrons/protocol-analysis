@@ -76,8 +76,11 @@ def test_info_endpoint_protocol_api_versions_contain_expected_entries(client):
     assert protocol_api_versions["2.26"] == "8.7.0"
 
     assert "2.27" in protocol_api_versions
-    assert protocol_api_versions["2.27"] == "next"
+    assert protocol_api_versions["2.27"] == "8.8.0"
     assert protocol_api_versions["2.26"] == "8.7.0"
+
+    assert "2.28" in protocol_api_versions
+    assert protocol_api_versions["2.28"] == "next"
 
 
 def test_info_endpoint_accepts_only_get_method(client):
@@ -122,6 +125,7 @@ def test_info_endpoint_returns_supported_robot_versions(client):
         "8.5.0",
         "8.6.0",
         "8.7.0",
+        "8.8.0",
         "edge",
         "next",
     ]
