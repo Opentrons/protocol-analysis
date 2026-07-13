@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-
 from evaluate.env_config import EnvironmentConfig
 from evaluate.venv_manager import VenvManager
 

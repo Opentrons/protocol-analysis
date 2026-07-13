@@ -1,0 +1,64 @@
+---
+description: Protocol evaluation engine conventions
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Protocol Evaluation Engine
+
+This repository is a standalone Python protocol analysis engine. It is not the private protocol corpus testing application (`private-protocol-testing` is separate).
+
+## Architecture first
+
+Understand the two-service design (FastAPI API + filesystem-queued processor) before broad refactors. Read `docs/architecture.md`.
+
+## Scope boundaries
+
+- Do not add protocol Library downloading, snapshot management, PR automation, GitHub Pages, AWS infrastructure, or web frontends.
+- Do not introduce React, Next.js, or unnecessary JavaScript.
+- Keep the repository primarily Python.
+
+## Public API compatibility
+
+- Preserve HTTP endpoint shapes unless intentionally breaking.
+- `robot_version` on `/evaluate` is the current caller contract; `private-protocol-testing` depends on it.
+- Add new fields and aliases rather than removing existing ones.
+
+## Environment management
+
+- Git refs must resolve to immutable commit SHAs before execution (planned; not yet implemented for all refs).
+- Environment creation must remain isolated and deterministic under `.venvs/`.
+- Use `uv` for project dependencies and venv creation; pip for Opentrons installs inside analysis venvs.
+
+## Subprocess and async
+
+- Analysis runs in isolated venv subprocesses, not the project virtualenv.
+- Prefer async-safe subprocess handling for new code; avoid blocking the event loop in API handlers.
+
+## Output stability
+
+- Do not leak temporary paths, credentials, or nondeterministic values into stable result metadata.
+
+## Verification
+
+Run `make verify` before finishing changes:
+
+```bash
+uv sync --dev --frozen
+make verify
+```
+
+## CI
+
+Prefer pinned GitHub Action commit SHAs (see Opentrons monorepo `.github/workflows/`). Use `ubuntu-24.04` and least-privilege `permissions`.
+
+## Tests and docs
+
+- New behavior requires tests.
+- Update `README.md` and `docs/` when behavior changes.
+- Mark slow tests with `@pytest.mark.slow` or `@pytest.mark.e2e`.
+
+## Secrets
+
+Never commit or log secrets, tokens, or credentials.

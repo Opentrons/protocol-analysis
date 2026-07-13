@@ -5,6 +5,8 @@ from typing import Any, Literal
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
+from api.file_storage import file_storage
+from api.version_mapping import PROTOCOL_API_TO_ROBOT_STACK, VALID_ROBOT_VERSIONS
 from evaluate.job_status import (
     JobStatus,
     read_job_status,
@@ -12,8 +14,6 @@ from evaluate.job_status import (
     write_job_status,
 )
 from evaluate.processor_heartbeat import get_processor_readiness
-from api.file_storage import file_storage
-from api.version_mapping import PROTOCOL_API_TO_ROBOT_STACK, VALID_ROBOT_VERSIONS
 
 # Get version from package metadata
 VERSION = "0.1.0"
@@ -197,7 +197,7 @@ async def evaluate_protocol(
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid RTP JSON: {str(e)}",
-            )
+            ) from e
 
     # Create job directory and save files synchronously
     job_id = file_storage.create_job_directory()

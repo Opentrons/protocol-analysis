@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app, VERSION
+from api.main import VERSION, app
 from api.version_mapping import PROTOCOL_API_TO_ROBOT_STACK
 
 
@@ -80,7 +80,10 @@ def test_info_endpoint_protocol_api_versions_contain_expected_entries(client):
     assert protocol_api_versions["2.26"] == "8.7.0"
 
     assert "2.28" in protocol_api_versions
-    assert protocol_api_versions["2.28"] == "next"
+    assert protocol_api_versions["2.28"] == "9.0.0"
+
+    assert "2.29" in protocol_api_versions
+    assert protocol_api_versions["2.29"] == "9.1.1"
 
 
 def test_info_endpoint_accepts_only_get_method(client):
@@ -126,6 +129,8 @@ def test_info_endpoint_returns_supported_robot_versions(client):
         "8.6.0",
         "8.7.0",
         "8.8.0",
+        "9.0.0",
+        "9.1.1",
         "edge",
         "next",
     ]

@@ -4,16 +4,17 @@ This service monitors for new analysis jobs and processes them.
 It's designed to run separately from the FastAPI server.
 """
 
+import ast
 import json
+import os
 import re
 import subprocess
 import time
-import ast
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from api.config import STORAGE_BASE_DIR
 from evaluate.env_config import get_environment_for_version, get_supported_versions
 from evaluate.job_status import (
     JobStatus,
@@ -21,9 +22,8 @@ from evaluate.job_status import (
     read_job_status,
     write_job_status,
 )
-from evaluate.venv_manager import VenvManager
-from api.config import STORAGE_BASE_DIR
 from evaluate.processor_heartbeat import write_processor_heartbeat
+from evaluate.venv_manager import VenvManager
 
 ANALYSIS_TIMEOUT = 120  # Timeout per protocol in seconds
 SIMULATION_TIMEOUT = ANALYSIS_TIMEOUT

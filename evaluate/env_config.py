@@ -70,11 +70,23 @@ ENVIRONMENT_CONFIGS = {
         venv_path=Path(".venvs/opentrons-8.8.0"),
         install_specs=["opentrons==8.8.0", "pandas==1.4.3"],
     ),
+    "9.0.0": EnvironmentConfig(
+        name="opentrons-9.0.0",
+        python_version="3.12",
+        venv_path=Path(".venvs/opentrons-9.0.0"),
+        install_specs=["opentrons==9.0.0", "pandas>=2.2.0"],
+    ),
+    "9.1.1": EnvironmentConfig(
+        name="opentrons-9.1.1",
+        python_version="3.12",
+        venv_path=Path(".venvs/opentrons-9.1.1"),
+        install_specs=["opentrons==9.1.1", "pandas>=2.2.0"],
+    ),
     "next": EnvironmentConfig(
         name="opentrons-next",
-        python_version="3.10",
+        python_version="3.12",
         venv_path=Path(".venvs/opentrons-next"),
-        install_specs=["opentrons==8.8.0a13", "pandas==1.4.3"],
+        install_specs=["opentrons==9.1.1a1", "pandas>=2.2.0"],
     ),
     "edge": EnvironmentConfig(
         name="opentrons-edge",
@@ -85,7 +97,8 @@ ENVIRONMENT_CONFIGS = {
         install_specs=[
             "git+https://github.com/Opentrons/opentrons.git@edge#subdirectory=shared-data",
             "git+https://github.com/Opentrons/opentrons.git@edge#subdirectory=api",
-            "pandas==1.4.3",
+            # pandas 1.4.x does not build on Python 3.12; edge uses a newer pin.
+            "pandas>=2.2.0",
         ],
     ),
 }

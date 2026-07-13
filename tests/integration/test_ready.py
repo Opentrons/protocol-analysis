@@ -1,13 +1,12 @@
 """Integration tests for the /ready endpoint."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
 
 from api.main import app
-
 
 HEARTBEAT_FILENAME = "_processor_heartbeat.json"
 
@@ -43,7 +42,7 @@ def test_ready_endpoint_reports_ready_when_heartbeat_is_fresh(client):
 
     heartbeat_file = file_storage.base_dir / HEARTBEAT_FILENAME
     heartbeat_file.write_text(
-        json.dumps({"updated_at": datetime.now(timezone.utc).isoformat()}, indent=2)
+        json.dumps({"updated_at": datetime.now(UTC).isoformat()}, indent=2)
     )
 
     response = client.get("/ready?processor_max_age_seconds=60")

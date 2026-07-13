@@ -8,18 +8,18 @@ teardown:
 
 .PHONY: test-unit
 test-unit:
-	uv run pytest tests/unit/ -v
+	uv run pytest tests/unit/ -v -m unit
 
 .PHONY: test-integration
 test-integration:
-	uv run pytest tests/integration/ -v
+	uv run pytest tests/integration/ -v -m integration
 
 .PHONY: test
 test:
-	uv run pytest -v --ignore=tests/e2e
+	uv run pytest -v --ignore=tests/e2e -m "not e2e and not slow"
 
 .PHONY: test-all
-test-all: lint test test-e2e
+test-all: verify test-e2e
 
 .PHONY: format
 format:
@@ -30,6 +30,17 @@ format:
 lint:
 	uv run ruff check . --exclude test-files
 	uv run ruff format --check . --exclude test-files
+
+.PHONY: typecheck
+typecheck:
+	uv run mypy api evaluate client run_processor.py run_client.py
+
+.PHONY: build
+build:
+	uv build
+
+.PHONY: verify
+verify: lint typecheck test build
 
 .PHONY: clean-storage
 clean-storage:
@@ -71,20 +82,27 @@ run:
 
 .PHONY: run-client
 run-client:
-	uv run python run_client.py
+	uv run python run_client.py test-files/simple/Flex_S_v2_24_P50_PAPI_Changes.py
 
-.PHONY: test-e2e
-test-e2e:
+.PHONY: test-edge
+test-edge:
+	PROTOCOL_EVALUATION_ENABLE_EDGE=1 uv run pytest tests/integration/test_edge_analysis.py -v -m slow
+
+.PHONY: verify-edge
+verify-edge:
+	rm -rf .venvs/opentrons-edge
+	$(MAKE) test-edge
+
 	@echo "Starting services for e2e tests..."
 	@make clean-storage > /dev/null 2>&1
-	@PORT=$$(python -c "import socket; s=socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1]); s.close()"); \
+	@PORT=$$(uv run python -c "import socket; s=socket.socket(); s.bind(('127.0.0.1', 0)); print(s.getsockname()[1]); s.close()"); \
 	BASE_URL=http://127.0.0.1:$$PORT; \
 	echo "Using $$BASE_URL"; \
 	PYTHONUNBUFFERED=1 uv run uvicorn api.main:app --host 127.0.0.1 --port $$PORT > e2e-api.log 2>&1 & echo $$! > e2e-api.pid; \
 	PYTHONUNBUFFERED=1 uv run python run_processor.py > e2e-processor.log 2>&1 & echo $$! > e2e-processor.pid; \
 	sleep 3 && \
 	echo "Running e2e tests..." && \
-	PROTOCOL_EVALUATION_BASE_URL=$$BASE_URL uv run pytest tests/e2e/ -v; \
+	PROTOCOL_EVALUATION_BASE_URL=$$BASE_URL uv run pytest tests/e2e/ -v -m e2e; \
 	TEST_EXIT=$$?; \
 	echo "Stopping services..."; \
 	kill $$(cat e2e-api.pid 2>/dev/null) 2>/dev/null || true; \

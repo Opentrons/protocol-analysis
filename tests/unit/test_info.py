@@ -1,7 +1,8 @@
 """Unit tests for the /info endpoint."""
 
 import pytest
-from api.main import get_info, InfoResponse, VERSION
+
+from api.main import VERSION, InfoResponse, get_info
 from api.version_mapping import PROTOCOL_API_TO_ROBOT_STACK
 
 
@@ -58,6 +59,7 @@ async def test_get_info_protocol_api_versions_contain_expected_keys():
         "2.26",
         "2.27",
         "2.28",
+        "2.29",
     ]
     for version in expected_versions:
         assert version in response.protocol_api_versions

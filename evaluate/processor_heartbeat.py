@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
 
 HEARTBEAT_FILENAME = "_processor_heartbeat.json"
 
@@ -35,7 +34,7 @@ def write_processor_heartbeat(
     storage_dir.mkdir(parents=True, exist_ok=True)
 
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
     payload = {"updated_at": now.isoformat()}
     _heartbeat_path(storage_dir).write_text(json.dumps(payload, indent=2))
@@ -48,7 +47,7 @@ def _parse_iso_datetime(value: str) -> datetime | None:
             value = value[:-1] + "+00:00"
         parsed = datetime.fromisoformat(value)
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.replace(tzinfo=UTC)
         return parsed
     except Exception:
         return None
@@ -70,7 +69,7 @@ def get_processor_readiness(
 ) -> ProcessorReadiness:
     """Compute processor readiness based on the heartbeat file age."""
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
     heartbeat_file = _heartbeat_path(storage_dir)
     if not heartbeat_file.exists():

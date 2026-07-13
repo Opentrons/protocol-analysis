@@ -1,46 +1,82 @@
 name: Lint and Test
 
 on:
-    pull_request:
-        branches: [main]
-    workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-    lint:
-        name: Lint
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: ./.github/actions/setup
-            - name: Run linter
-              run: make lint
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup
+      - name: Run linter
+        run: make lint
 
-    test:
-        name: Test (Unit & Integration)
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: ./.github/actions/setup
-            - name: Run tests
-              run: make test
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup
+      - name: Run mypy
+        run: make typecheck
 
-    test-e2e:
-        name: Test (End-to-End)
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5
-            - uses: ./.github/actions/setup
-            - name: Run e2e tests
-              run: make test-e2e
-            - name: Save analysis venv cache
-              if: success()
-              uses: ./.github/actions/cache-venvs-save
-            - name: Upload logs on failure
-              if: failure()
-              uses: actions/upload-artifact@v5
-              with:
-                  name: e2e-logs
-                  path: |
-                      e2e-api.log
-                      e2e-processor.log
-                  retention-days: 7
+  test:
+    name: Test (Unit & Integration)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup
+      - name: Run tests
+        run: make test
+
+  build:
+    name: Build package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup
+      - name: Build distribution
+        run: make build
+
+  test-e2e:
+    name: Test (End-to-End)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup
+      - name: Run e2e tests
+        run: make test-e2e
+      - name: Save analysis venv cache
+        if: success()
+        uses: ./.github/actions/cache-venvs-save
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-logs
+          path: |
+            e2e-api.log
+            e2e-processor.log
+          retention-days: 7

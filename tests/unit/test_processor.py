@@ -1,9 +1,9 @@
 """Unit tests for the protocol processor simulation flow."""
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-import sys
 
 import pytest
 
